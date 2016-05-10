@@ -1,7 +1,7 @@
 #`raw` Resource Provider for Rebar3
 
 [Rebar3][rebar3] requires that all dependencies be structured as OTP applications.
-Thare are, however, lots of cases when you just want to include a dependency in your project from which to pull unstructured resources, whether source code, graphics, text, or any number of other possibilities.
+There are, however, lots of cases when you just want to include a dependency in your project from which to pull unstructured resources, whether source code, graphics, text, or any number of other possibilities.
 This `rebar3` plugin allows you to do just that.
 
 ##What It Does

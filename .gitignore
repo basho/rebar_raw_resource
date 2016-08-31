@@ -1,8 +1,11 @@
 # rebar3 and tools
 /.cache/
+/.rebar3/
 /_build/
+/rebar.lock
 
 # build artifacts
+/ebin/
 *.app
 *.beam
 
@@ -17,3 +20,4 @@
 .project
 .settings/
 .tm_properties
+Makefile

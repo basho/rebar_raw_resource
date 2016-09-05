@@ -46,7 +46,7 @@
 ]).
 
 % For development only - you *really* don't want this defined!
--define(RRR_DEBUG,  true).
+%-define(RRR_DEBUG,  true).
 
 -define(else,   'true').
 -define(is_min_tuple(Var, Min),
@@ -164,10 +164,12 @@
 %% ===================================================================
 %% Internal
 %% ===================================================================
--spec absorb_deps(Dep :: [rebar_dep()]) -> 'ok'.
+-spec absorb_app_infos(AppInfos :: tuple()) -> 'ok'.
 -spec absorb_dep(Name :: keyable(), Spec :: rsrc_spec()) -> 'ok'.
+-spec absorb_deps(Deps :: [rebar_dep()]) -> 'ok'.
 -spec absorb_named_spec(Name :: keyable(), Spec :: rsrc_spec()) -> 'ok'.
--spec absorb_resources(Res :: [rebar_rsrc()]) -> 'ok'.
+-spec absorb_profiles(Profiles :: [atom()], State :: rebar_state()) -> 'ok'.
+-spec absorb_resources(Resources :: [rebar_rsrc()]) -> 'ok'.
 -spec absorb_state(State :: rebar_state()) -> 'ok'.
 
 -spec ensure_app(
@@ -236,8 +238,9 @@ download(Dest, {?RTYPE, Spec}, State) ->
     download(Dest, {?RTYPE, Spec, []}, State);
 
 download(Dest, {?RTYPE, Spec, Opts}, State) ->
-    ?RRR_STATE('state'),
-    ?RRR_STATE('opts'),
+%   ?RRR_STATE('state'),
+%   ?RRR_STATE('opts'),
+%   ?RRR_STATE('lock'),
 
     'ok' = absorb_state(State),
     Name = spec_name(Spec),
@@ -315,41 +318,63 @@ make_vsn(Path) ->
 
 %
 % Soak up whatever we care about from the state.
+% There's a lot of code here that may be redundant and/or unused as I feel
+% around trying to make sure all of the dependencies are found in each runtime
+% scenario.
+% Hopefully it'll all be cleaned up someday.
 %
+
 absorb_state(State) ->
     absorb_resources(rebar_state:resources(State)),
     absorb_deps(rebar_state:get(State, 'deps', [])),
+    absorb_app_infos(rebar_state:lock(State)),
+%   absorb_profiles(rebar_state:current_profiles(State), State),
     dump_state().
 
+-compile({nowarn_unused_function, absorb_app_infos/1}).
+absorb_app_infos([AppInfo | AppInfos]) ->
+    absorb_dep(rebar_app_info:name(AppInfo), rebar_app_info:source(AppInfo)),
+    absorb_app_infos(AppInfos);
+absorb_app_infos([]) ->
+    'ok'.
+
+absorb_deps([Dep | Deps]) ->
+    absorb_dep(Dep),
+    absorb_deps(Deps);
+absorb_deps([]) ->
+    'ok'.
+
+-compile({nowarn_unused_function, absorb_profiles/2}).
+absorb_profiles([Profile | Profiles], State) ->
+    absorb_app_infos(rebar_state:get(State, {'parsed_deps', Profile}, [])),
+    absorb_profiles(Profiles, State);
+absorb_profiles([], _) ->
+    'ok'.
+
 %
-% Resources *should* always be tuples of 3 elements, but allow for whatever
-% may pass by to handle future extensions.
+% Allow for whatever may come through to handle future extensions.
 %
-absorb_resources([Res | More]) when ?is_min_tuple(Res, 2) ->
+absorb_resources([Res | Resources]) when ?is_min_tuple(Res, 2) ->
     erlang:put(
         type_key(erlang:element(1, Res)),
         term_to_atom(erlang:element(2, Res))),
-    absorb_resources(More);
-absorb_resources([_ | More]) ->
-    absorb_resources(More);
+    absorb_resources(Resources);
+absorb_resources([_ | Resources]) ->
+    absorb_resources(Resources);
 absorb_resources([]) ->
     'ok'.
 
 %
-% Accommodate dependencies with or without the rebar2 regex string. As above,
-% be as lenient as we can about current and future structure.
+% Accommodate dependencies with or without the rebar2 regex string.
+% Be as lenient as we can about current and future structure.
 %
-absorb_deps([Dep | More]) when ?is_min_tuple(Dep, 2)
+absorb_dep(Dep) when ?is_min_tuple(Dep, 2)
         andalso erlang:is_tuple(erlang:element(2, Dep)) ->
-    absorb_dep(erlang:element(1, Dep), erlang:element(2, Dep)),
-    absorb_deps(More);
-absorb_deps([Dep | More]) when ?is_min_tuple(Dep, 3)
+    absorb_dep(erlang:element(1, Dep), erlang:element(2, Dep));
+absorb_dep(Dep) when ?is_min_tuple(Dep, 3)
         andalso erlang:is_tuple(erlang:element(3, Dep)) ->
-    absorb_dep(erlang:element(1, Dep), erlang:element(3, Dep)),
-    absorb_deps(More);
-absorb_deps([_ | More]) ->
-    absorb_deps(More);
-absorb_deps([]) ->
+    absorb_dep(erlang:element(1, Dep), erlang:element(3, Dep));
+absorb_dep(_) ->
     'ok'.
 
 absorb_dep(Name, {?RTYPE, Spec, _}) ->
@@ -524,7 +549,7 @@ spec_key(Spec) ->
 -ifndef(RRR_DEBUG).
 
 error_result(Class, Data) ->
-    {'error', {?MODULE, {Class, Data, erlang:get_stacktrace()}}}.
+    {'error', {?MODULE, {Class, Data}}}.
 
 -compile({inline, [dump_state/0]}).
 dump_state() ->
@@ -549,7 +574,16 @@ filter_env([_ | Rest], Result) ->
 filter_env([], Result) ->
     Result.
 
--compile({nowarn_unused_function, debug_state/2}).
+% If the ?RRR_STATE(Field) macro isn't used, nothing calls these functions.
+% The compiler will leave them out, but we need to disable the unused function
+% warning to get through compilation.
+-compile({nowarn_unused_function, [
+    debug_state/2,
+    state_file_path/1,
+    state_file_path/2,
+    write_state_file/2
+]}).
+
 debug_state(State, 'state' = Field) ->
     write_state_file(state_file_path(Field), State);
 debug_state(State, Field) ->

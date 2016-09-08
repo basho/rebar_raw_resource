@@ -97,9 +97,13 @@ If the dependency is going to be included in your project as an OTP application,
 
 ###Scope of Dependency Names and Locations
 
-At present, I don't discriminate between scopes, assuming a given dependency location always maps to the same name. Including the dependency's version selector and profile would allow allow complete uniqueness of mappings, but subsequent operations may alter the version selector, resulting in matches not being found. Overall, I think it's reasonable to have a constraint saying _"You **MUST** use the same name for a given dependency URL across profiles."_
+At present, I don't discriminate between scopes, assuming a given dependency location always maps to the same name.
+Including the dependency's version selector and profile would allow complete uniqueness of mappings, but subsequent operations may alter the version selector, resulting in matches not being found.
+Overall, I think it's reasonable to have a constraint saying _"You **MUST** use the same name for a given dependency URL across profiles"_ - in fact, that constraint may also be implicit in rebar3 itself, though it doesn't appear to be formally declared.
 
-Because resource specifiers (rightly) don't have a specified schema, we treat them as relatively opaque tuples where the first element is the type and the second element is the location. _**Note** that this means old-style dependencies with a version regex WILL break the mapping strategy_, but that's a constraint I'm ok with.
+Because the nested resource specifiers (rightly) don't have a specified schema, we treat them as relatively opaque tuples where the first element is the type and the second element is the location.
+
+Old-style dependencies with a version regex immediately following the dependency name SHOULD be accommodated but ignored, though this aspect hasn't been, and isn't likely to be, rigorously tested as it's moot in rebar3.
 
 ###Dependency Source Tree Modification
 
@@ -112,6 +116,8 @@ Note that the above means that if you go into the dependency's source directory 
 ##Enhancements
 
 If you find a bug, please report an [issue][issues], or better yet, fix it and submit a [pull request][pulls].
+
+You _may_ find that using the `develop` branch here fixes a problem you're having, but it's just as likely that it'll crash and burn, so unless you're comfortable reviewing the code yourself you should probably stay away from it.
 
 If there's something to discuss, especially if others might be interested, the rebar [mailing list][discuss] is the place to go.
 

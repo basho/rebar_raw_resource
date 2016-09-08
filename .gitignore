@@ -20,4 +20,5 @@
 .project
 .settings/
 .tm_properties
+local.*.plt
 Makefile

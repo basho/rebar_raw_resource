@@ -86,11 +86,12 @@
 % not being found. Overall, I think it's reasonable to have a constraint saying
 % 'You MUST use the same name for a given dependency URL across profiles.'
 %
-% Because resource specifiers (rightly) don't have a specified schema, we treat
-% them as relatively opaque tuples where the first element is the type and the
-% second element is the location. Old-style dependencies with a version regex
-% SHOULD be accommodated but ignored, though this aspect hasn't been rigorously
-% tested as it's moot in rebar3.
+% Because the nested resource specifiers (rightly) don't have a specified
+% schema, we treat them as relatively opaque tuples where the first element is
+% the type and the second element is the location.
+% Old-style dependencies with a version regex immediately following the
+% dependency name SHOULD be accommodated but ignored, though this aspect hasn't
+% been, and isn't likely to be, rigorously tested as it's moot in rebar3.
 %
 % Currently, we satisfy rebar's need for an OTP application by scribbling a
 % minimal app config file in <dep-path>/ebin/<dep-name>.app if there's not

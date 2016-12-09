@@ -27,7 +27,7 @@ The following addition to `rebar.config` makes the plugin available for use with
 ```erlang
 {plugins, [
     {rebar_raw_resource,
-        {git, "git://github.com/tburghart/rebar_raw_resource.git",
+        {git, "git://github.com/basho/rebar_raw_resource.git",
         {branch, "master"}}}
 ]}.
 ```
@@ -128,9 +128,9 @@ Everything here is covered by this [license][].
 
   [depdocs]:    https://www.rebar3.org/docs/dependencies
   [discuss]:    http://lists.basho.com/mailman/listinfo/rebar_lists.basho.com
-  [issues]:     https://github.com/tburghart/rebar_raw_resource/issues
+  [issues]:     https://github.com/basho/rebar_raw_resource/issues
   [license]:    LICENSE
-  [pulls]:      https://github.com/tburghart/rebar_raw_resource/pulls
+  [pulls]:      https://github.com/basho/rebar_raw_resource/pulls
   [rebar3]:     https://www.rebar3.org
   [rebar3cfg]:  https://www.rebar3.org/docs/configuration
   [rebar3src]:  https://github.com/erlang/rebar3

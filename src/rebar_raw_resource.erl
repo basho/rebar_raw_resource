@@ -393,8 +393,8 @@ absorb_profiles(Data, [], _) ->
 absorb_resources(Data, [Res | Resources]) when ?is_min_tuple(Res, 2) ->
     absorb_resources(
         map_res(Data, #mod_res{
-            res = term_to_atom(erlang:element(1, Res)),
-            mod = erlang:element(2, Res)}),
+            res = term_to_atom(erlang:element(2, Res)),
+            mod = erlang:element(3, Res)}),
         Resources);
 absorb_resources(Data, [_ | Resources]) ->
     absorb_resources(Data, Resources);

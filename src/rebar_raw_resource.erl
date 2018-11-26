@@ -134,7 +134,7 @@
 -type rebar_dep()   ::  {rsrc_name()} | {rsrc_name(), rsrc_spec() | rsrc_vsn()}.
 -type rebar_dir()   ::  file:filename_all().
 -type rebar_err()   ::  {'error', term()}.
--type rebar_rsrc()  ::  {rsrc_type(), rsrc_mod()}.
+-type rebar_rsrc()  ::  {rsrc_type(), rsrc_mod()} | rebar_resource_v2:resource().
 -type rebar_vsn()   ::  {'plain', rsrc_vsn()}.
 
 -type rsrc_dir()    ::  rebar_dir().
@@ -390,11 +390,19 @@ absorb_profiles(Data, [], _) ->
 %
 % Allow for whatever may come through to handle future extensions.
 %
-absorb_resources(Data, [Res | Resources]) when ?is_min_tuple(Res, 2) ->
+% rebar v2 resource
+absorb_resources(Data, [Res | Resources]) when ?is_rec_type(Res, resource, 3) ->
     absorb_resources(
         map_res(Data, #mod_res{
             res = term_to_atom(erlang:element(2, Res)),
             mod = erlang:element(3, Res)}),
+        Resources);
+% old style rebar resource
+absorb_resources(Data, [Res | Resources]) when ?is_min_tuple(Res, 2) ->
+    absorb_resources(
+        map_res(Data, #mod_res{
+            res = term_to_atom(erlang:element(1, Res)),
+            mod = erlang:element(2, Res)}),
         Resources);
 absorb_resources(Data, [_ | Resources]) ->
     absorb_resources(Data, Resources);

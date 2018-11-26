@@ -1,10 +1,10 @@
-#`raw` Resource Provider for Rebar3
+# `raw` Resource Provider for Rebar3
 
 [Rebar3][rebar3] requires that all dependencies be structured as OTP applications.
 There are, however, lots of cases when you just want to include a dependency in your project from which to pull unstructured resources, whether source code, graphics, text, or any number of other possibilities.
 This `rebar3` plugin allows you to do just that.
 
-##What It Does
+## What It Does
 
 This resource provider does two things:
 
@@ -12,7 +12,7 @@ This resource provider does two things:
 
  * Creates a minimal OTP application structure in retrieved dependencies that satisfies rebar's structure requirements.
 
-##How to Use It
+## How to Use It
 
 Everything the plugin does is configured in your project's `rebar.config` file.
 
@@ -20,7 +20,7 @@ What you do with the dependency once you get it into rebar's build tree is up to
 
 _You'll find some information in the [rebar3 configuration][rebar3cfg] documentation, but you may need to run `rebar3` with `DEBUG` set and/or review the [source][rebar3src] to find all of the accessible information._
 
-###Add The Plugin
+### Add The Plugin
 
 The following addition to `rebar.config` makes the plugin available for use with your dependencies:
 
@@ -32,7 +32,7 @@ The following addition to `rebar.config` makes the plugin available for use with
 ]}.
 ```
 
-###Add Raw Dependencies
+### Add Raw Dependencies
 
 The `raw` resource type is simply a wrapper around another type, so the basic structure of a raw dependency is:
 
@@ -57,7 +57,7 @@ or
 
 The `raw` resource doesn't know anything about other resource types, it just uses their specifications to call into other resource providers to fetch and report on the dependencies.
 
-####Dependency Options
+#### Dependency Options
 
 You can optionally include a description and/or version in a `raw` dependency specification which will affect the generated `.app` file.
 By default, for a dependency named `foo` that has neither a `src/foo.app.src` or `ebin/foo.app` file, a `ebin/foo.app` file will be written that looks like this:
@@ -88,12 +88,12 @@ The `description` field is simply the dependency's name, and the `vsn` field is 
 ]}.
 ```
 
-#####A Note About Dependency Options
+##### A Note About Dependency Options
 
 There are probably very few, if any, legitimate use cases for these dependency options.
 If the dependency is going to be included in your project as an OTP application, you should almost certainly craft a more appropriate `.app` or `.app.src` file.
 
-##Caveats
+## Caveats
 
 ###Scope of Dependency Names and Locations
 
@@ -105,7 +105,7 @@ Because the nested resource specifiers (rightly) don't have a specified schema, 
 
 Old-style dependencies with a version regex immediately following the dependency name SHOULD be accommodated but ignored, though this aspect hasn't been, and isn't likely to be, rigorously tested as it's moot in rebar3.
 
-###Dependency Source Tree Modification
+### Dependency Source Tree Modification
 
 Currently, we satisfy rebar's need for an OTP application by scribbling a minimal app config file in `dep-path/ebin/dep-name.app` if there's neither such a file already, nor its equivalent source in the `dep-path/src` directory. If anything that will satisfy rebar3's OTP application requirement is found, the plugin won't write any file.
 
@@ -113,24 +113,19 @@ It would be preferable to build the `rebar_app_info` record dynamically and inse
 
 Note that the above means that if you go into the dependency's source directory and check its status it will appear to have pending changes, but you probably don't want to commit the generated file.
 
-##Enhancements
+## Enhancements
 
 If you find a bug, please report an [issue][issues], or better yet, fix it and submit a [pull request][pulls].
 
-You _may_ find that using the `develop` branch here fixes a problem you're having, but it's just as likely that it'll crash and burn, so unless you're comfortable reviewing the code yourself you should probably stay away from it.
+## License
 
-If there's something to discuss, especially if others might be interested, the rebar [mailing list][discuss] is the place to go.
-
-##License
-
-Everything here is covered by this [license][].
+Everything here is covered by this [license][license].
 
 
   [depdocs]:    https://www.rebar3.org/docs/dependencies
-  [discuss]:    http://lists.basho.com/mailman/listinfo/rebar_lists.basho.com
-  [issues]:     https://github.com/basho/rebar_raw_resource/issues
+  [issues]:     https://github.com/alertlogic/rebar_raw_resource/issues
   [license]:    LICENSE
-  [pulls]:      https://github.com/basho/rebar_raw_resource/pulls
+  [pulls]:      https://github.com/alertlogic/rebar_raw_resource/pulls
   [rebar3]:     https://www.rebar3.org
   [rebar3cfg]:  https://www.rebar3.org/docs/configuration
   [rebar3src]:  https://github.com/erlang/rebar3

@@ -36,12 +36,16 @@
     % provider
     do/1,
     format_error/1,
-    init/1,
-    % rebar_resource
-    download/3,
+    init/2,
+    % rebar_resource_v2 callbacks
+    download/4,
     lock/2,
-    make_vsn/1,
-    needs_update/2
+    make_vsn/2,
+    needs_update/2,
+    % pre-rebar3 3.7.0 rebar_resource callbacks
+    init/1,
+    download/3,
+    make_vsn/1
 ]).
 
 % For development only - you *really* don't want this defined!
@@ -194,9 +198,27 @@
 % download/3 is NOT called first if the dependency is already present, and
 % it's the only resource call that gets to see the rebar state.
 %
+% Note: This arity is the pre-rebar3 3.7.0 format of this function.
+%
 init(State) ->
     #mod_data{} = absorb_state(State),
     {'ok', rebar_state:add_resource(State, {?RTYPE, ?MODULE})}.
+
+-spec init(Type :: rsrc_type(),
+           State :: rebar_state()) -> {'ok', rebar_state()}.
+%
+% Installs the resource handler, the provider itself does nothing.
+%
+% This gets called repeatedly, for each profile, and in each case we want
+% to prime the process environment with any info we may need later, as
+% download/4 is NOT called first if the dependency is already present, and
+% it's the only resource call that gets to see the rebar state.
+%
+% Note: This arity is the rebar_resource_v2 format of this function.
+%
+init(Type, State) ->
+    #mod_data{} = absorb_state(State),
+    {'ok', rebar_resource_v2:new(Type, ?MODULE, State)}.
 
 -spec do(State :: rebar_state:t()) -> {'ok', rebar_state()}.
 %
@@ -225,14 +247,18 @@ format_error(Error) ->
 %% Resource API
 %% ===================================================================
 
--spec download(
-    Dest :: rsrc_dir(), From :: this_spec(), State :: rebar_state())
-        -> {'ok', term()} | rebar_err().
+-spec download(Dest :: rsrc_dir(),
+               From :: this_spec(),
+               State :: rebar_state())
+              -> {'ok', term()} | rebar_err().
 %
 % Download the specified resource using its underlying handler.
 %
-download(Dest, {?RTYPE, Loc,
-        #mod_ref{res = Res, ref = Ref, opt = Opts}}, State) ->
+% Note: This arity is the pre-rebar3 3.7.0 format of this function.
+%
+download(Dest,
+         {?RTYPE, Loc, #mod_ref{res = Res, ref = Ref, opt = Opts}},
+         State) ->
     download(Dest, {?RTYPE, {Res, Loc, Ref}, Opts}, State);
 
 download(Dest, {?RTYPE, Spec}, State) ->
@@ -254,13 +280,60 @@ download(Dest, {?RTYPE, Spec, Opts}, State) ->
             Err
     end.
 
--spec lock(Path :: rsrc_dir(), Spec :: this_spec())
-        -> rebar_lock() | no_return().
+-spec download(Dest :: rsrc_dir(),
+               AppInfo :: rebar_app_info:t(),
+               ResourceState :: term(),
+               State :: rebar_state())
+              -> {'ok', term()} | rebar_err().
+%
+% Download the specified resource using its underlying handler.
+%
+% Note: This arity is the rebar_resource_v2 format of this function.
+%
+download(Dest, AppInfo0, ResourceState, RebarState) ->
+    Name = term_to_atom(rebar_app_info:name(AppInfo0)),
+    {Spec, Opts} = case rebar_app_info:source(AppInfo0) of
+        {?RTYPE, Loc0, #mod_ref{res = Res0, ref = Ref, opt = Opts0}} ->
+            {{Res0, Loc0, Ref}, Opts0};
+        {?RTYPE, S, O} ->
+            {S, O};
+        {?RTYPE, S} ->
+            {S, []}
+    end,
+    {Res, _Loc} = parse_ext_spec(Spec),
+    #mod_res{mod = Mod} = lookup_res(mod_data(), Res),
+    AppInfo = rebar_app_info:source(AppInfo0, Spec),
+    case Mod:download(Dest, AppInfo, ResourceState, RebarState) of
+        ok ->
+            case lists:keytake(vsn, 1, Opts) of
+                false ->
+                    % because download has not put the downloaded app into
+                    % its final location, configure the app dir to be the
+                    % Dest provided.
+                    TmpAppInfo = rebar_app_info:dir(AppInfo, Dest),
+                    {plain, Vsn} = Mod:make_vsn(TmpAppInfo, []),
+                    ensure_app(Dest, Mod, Name, [{vsn, Vsn} |Opts], ok);
+                {value, _, _} ->
+                    ensure_app(Dest, Mod, Name, Opts, ok)
+            end;
+        Err -> Err
+    end.
+
+-spec lock(Path :: rsrc_dir(),
+           Spec :: this_spec())
+          -> rebar_lock() | no_return();
+          (AppInfo :: rebar_app_info:t(),
+           ResourceState :: term())
+          -> rebar_lock() | no_return().
 %
 % Pass through to the underlying resource handler.
 % Note that the callback doesn't allow an error tuple to be returned, so an
 % exception is our only option if we can't look up the mapping.
 %
+% Note: this function is common to the pre-rebar3 3.7.0 and rebar_resource_v2
+% formats, and as such has heads for each.
+%
+%% pre-rebar3 3.7.0 format
 lock(Path, {?RTYPE, Loc, #mod_ref{res = Res, ref = Prev} = Rec}) ->
     #mod_res{mod = Mod} = lookup_res(mod_data(), Res),
     {Res, Loc, Ref} = Mod:lock(Path, {Res, Loc, Prev}),
@@ -273,15 +346,35 @@ lock(Path, {?RTYPE, Spec, Opts}) ->
     {Res, _} = parse_ext_spec(Spec),
     #mod_res{mod = Mod} = lookup_res(mod_data(), Res),
     {Res, Loc, Ref} = Mod:lock(Path, Spec),
+    {?RTYPE, Loc, #mod_ref{res = Res, ref = Ref, opt = Opts}};
+%% rebar_resource_v2 format
+lock(AppInfo, _ResourceState) ->
+    {Spec, Opts} = case rebar_app_info:source(AppInfo) of
+        {?RTYPE, Loc0, #mod_ref{res = Res0, ref = Ref0, opt = Opts0}} ->
+            {{Res0, Loc0, Ref0}, Opts0};
+        {?RTYPE, S, O} -> {S, O};
+        {?RTYPE, S} -> {S, []}
+    end,
+    {Res, _Loc} = parse_ext_spec(Spec),
+    #mod_res{mod = Mod} = lookup_res(mod_data(), Res),
+    {Res, Loc, Ref} = Mod:lock(rebar_app_info:source(AppInfo, Spec), []),
     {?RTYPE, Loc, #mod_ref{res = Res, ref = Ref, opt = Opts}}.
 
--spec needs_update(Path :: rsrc_dir(), Spec :: this_spec())
-        -> boolean() | no_return().
+-spec needs_update(Path :: rsrc_dir(),
+                   SpecOrResourceState :: this_spec())
+                  -> boolean() | no_return();
+                  (AppInfo :: rebar_app_info:t(),
+                   State :: rebar_state())
+                  -> boolean() | no_return().
 %
 % Pass through to the underlying resource handler.
 % Note that the callback doesn't allow an error tuple to be returned, so an
 % exception is our only option if we can't look up the mapping.
 %
+% Note: this function is common to the pre-rebar3 3.7.0 and rebar_resource_v2
+% formats, and as such has heads for each.
+%
+%% pre-rebar3 3.7.0 format
 needs_update(Path, {?RTYPE, Loc, #mod_ref{res = Res, ref = Ref}}) ->
     #mod_res{mod = Mod} = lookup_res(mod_data(), Res),
     Mod:needs_update(Path, {Res, Loc, Ref});
@@ -292,19 +385,54 @@ needs_update(Path, {?RTYPE, Spec, _}) ->
 needs_update(Path, {?RTYPE, Spec}) ->
     {Res, _} = parse_ext_spec(Spec),
     #mod_res{mod = Mod} = lookup_res(mod_data(), Res),
-    Mod:needs_update(Path, Spec).
+    Mod:needs_update(Path, Spec);
+%% rebar_resource_v2 format
+needs_update(AppInfo, State) ->
+    {Mod, SourceSpec} = case rebar_app_info:source(AppInfo) of
+        {?RTYPE, Loc, #mod_ref{res = Res, ref = Ref}} ->
+            #mod_res{mod = M} = lookup_res(mod_data(), Res),
+            {M, {Res, Loc, Ref}};
+        {?RTYPE, Spec, _} ->
+            {Res, _} = parse_ext_spec(Spec),
+            #mod_res{mod = M} = lookup_res(mod_data(), Res),
+            {M, Spec};
+        {?RTYPE, Spec} ->
+            {Res, _} = parse_ext_spec(Spec),
+            #mod_res{mod = M} = lookup_res(mod_data(), Res),
+            {M, Spec}
+    end,
+    Mod:needs_update(rebar_app_info:source(AppInfo, SourceSpec), State).
 
 -spec make_vsn(Path :: rsrc_dir())
         -> rebar_vsn() | {'error', string()} | no_return().
 %
 % Pass through to the underlying resource handler.
 % The weird error tuple spec comes from the rebar_resource behavior.
+% Note: This arity is the pre-rebar3 3.7.0 format of this function.
 %
 make_vsn(Path) ->
     Data = mod_data(),
     #mod_dep{res = Res} = lookup_dep(Data, path_name(Path)),
     #mod_res{mod = Mod} = lookup_res(Data, Res),
     Mod:make_vsn(Path).
+
+-spec make_vsn(Path :: rsrc_dir(),
+               State :: rebar_state())
+              -> rebar_vsn() | {'error', string()} | no_return().
+%
+% Pass through to the underlying resource handler.
+% The weird error tuple spec comes from the rebar_resource behavior.
+% Note: This arity is the rebar_resource_v2 format of this function.
+%
+make_vsn(AppInfo0, _ResourceState) ->
+    Spec = case rebar_app_info:source(AppInfo0) of
+        {?RTYPE, Loc0, #mod_ref{res = Res0, ref = Ref}} -> {Res0, Loc0, Ref};
+        {?RTYPE, S, _} -> S;
+        {?RTYPE, S} -> S
+    end,
+    {Res, _Loc} = parse_ext_spec(Spec),
+    #mod_res{mod = Mod} = lookup_res(mod_data(), Res),
+    Mod:make_vsn(rebar_app_info:source(AppInfo0, Spec), []).
 
 %% ===================================================================
 %% Internal
@@ -390,14 +518,14 @@ absorb_profiles(Data, [], _) ->
 %
 % Allow for whatever may come through to handle future extensions.
 %
-% rebar v2 resource
+% rebar_resource_v2 format
 absorb_resources(Data, [Res | Resources]) when ?is_rec_type(Res, resource, 3) ->
     absorb_resources(
         map_res(Data, #mod_res{
             res = term_to_atom(erlang:element(2, Res)),
             mod = erlang:element(3, Res)}),
         Resources);
-% old style rebar resource
+% pre-rebar3 3.7.0 format
 absorb_resources(Data, [Res | Resources]) when ?is_min_tuple(Res, 2) ->
     absorb_resources(
         map_res(Data, #mod_res{
@@ -480,9 +608,9 @@ ensure_app(Path, Mod, Name, Opts, Result) ->
                 "    {applications,  [kernel, stdlib]}\n"
                 "]}.\n",
                 [?MODULE, Name, Desc, Vsn]),
-            case filelib:ensure_dir(BApp) of
+            case filelib:ensure_dir(SApp) of
                 'ok' ->
-                    case file:write_file(BApp, Data) of
+                    case file:write_file(SApp, Data) of
                         'ok' ->
                             Result;
                         Err ->
